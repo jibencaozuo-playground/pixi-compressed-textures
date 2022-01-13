@@ -1103,90 +1103,125 @@ var pixi_compressed_textures;
 (function (pixi_compressed_textures) {
     var WorkedBASIS;
     (function (WorkedBASIS) {
-        WorkedBASIS.basisWorkerSource = function () {
-            var _BasisFile;
-            function init(message) {
-                var bin = message.wasmBinary;
-                __init(bin).then(function () {
-                    self.postMessage({ type: "init", status: true, buffer: bin }, [bin]);
-                });
-            }
-            function transcode(message) {
-                try {
-                    var res = __transcode(message.buffer, message.config);
-                    Object.assign(res, {
-                        type: 'transcode',
-                    });
-                    self.postMessage(res, [res.buffer.buffer]);
-                }
-                catch (error) {
-                    console.error(error);
-                    self.postMessage({ type: 'error', id: message.id, error: error.message });
-                }
-            }
-            onmessage = function (e) {
-                var message = e.data;
-                var func = self[message.type];
-                if (func) {
-                    func(message);
-                }
-            };
-            function __init(wasmBinary) {
-                var Module;
-                return new Promise(function (resolve) {
-                    Module = { wasmBinary: wasmBinary, onRuntimeInitialized: resolve };
-                    return BASIS(Module);
-                }).then(function () {
-                    var BasisFile = Module.BasisFile, initializeBasis = Module.initializeBasis;
-                    _BasisFile = BasisFile;
-                    initializeBasis();
-                });
-            }
-            function __transcode(buffer, config) {
-                var basisFile = new _BasisFile(new Uint8Array(buffer));
-                var width = basisFile.getImageWidth(0, 0);
-                var height = basisFile.getImageHeight(0, 0);
-                var levels = config.genMip ? basisFile.getNumLevels(0) : 1;
-                var hasAlpha = basisFile.getHasAlpha();
-                var cleanup = function () {
-                    basisFile.close();
-                    basisFile.delete();
-                };
-                if (!width || !height || !levels) {
-                    cleanup();
-                    throw 'Invalid .basis file';
-                }
-                if (!basisFile.startTranscoding()) {
-                    cleanup();
-                    throw '.startTranscoding failed';
-                }
-                var totalSize = 0;
-                var offset = 0;
-                var targetBuffer = undefined;
-                var mipmaps = [];
-                var target = hasAlpha ? config.rgbaFormat : config.rgbFormat;
-                for (var mip = 0; mip < levels; mip++) {
-                    var mipWidth = basisFile.getImageWidth(0, mip);
-                    var mipHeight = basisFile.getImageHeight(0, mip);
-                    var size = basisFile.getImageTranscodedSizeInBytes(0, mip, target);
-                    totalSize += size;
-                    mipmaps.push({ width: mipWidth, height: mipHeight, format: target, size: size });
-                }
-                targetBuffer = new Uint8Array(totalSize);
-                for (var mip = 0; mip < levels; mip++) {
-                    var size = mipmaps[mip].size;
-                    var dst = new Uint8Array(targetBuffer.buffer, offset, size);
-                    var status_1 = basisFile.transcodeImage(dst, 0, mip, target, 0, 0);
-                    if (!status_1) {
-                        cleanup();
-                        throw '.transcodeImage failed.';
-                    }
-                    offset += size;
-                }
-                cleanup();
-                return { width: width, height: height, hasAlpha: hasAlpha, mipmaps: mipmaps, buffer: targetBuffer };
-            }
-        };
+        WorkedBASIS.basisWorkerSource = [
+            "function () {",
+            "    let _BasisFile;",
+            "    function init (message) {",
+            "      const bin = message.wasmBinary;",
+            "      __init (bin).then(()=>{",
+            "        //@ts-ignore",
+            "        self.postMessage({ type : \"init\", status : true, buffer : bin }, [bin]); // return back for next workers",
+            "      });",
+            "    }",
+            "",
+            "    function transcode(message) {",
+            "      try {",
+            "        const res = __transcode( message.buffer, message.config);",
+            "",
+            "        Object.assign(res, {",
+            "          type : 'transcode',",
+            "        });",
+            "        //@ts-ignore",
+            "        self.postMessage( res, [res.buffer.buffer] );",
+            "",
+            "      } catch ( error ) {",
+            "        console.error( error );",
+            "        //@ts-ignore",
+            "        self.postMessage( { type: 'error', id: message.id, error: error.message });",
+            "      }",
+            "    }",
+            "",
+            "    onmessage = function ( e ) {",
+            "      const message = e.data;",
+            "      const func = self[message.type];",
+            "      if(func) {",
+            "        //@ts-ignore",
+            "        func(message);",
+            "      }",
+            "    };",
+            "",
+            "    function __init( wasmBinary) {",
+            "",
+            "      let Module;",
+            "      return new Promise( ( resolve ) =>",
+            "      {",
+            "        Module = { wasmBinary, onRuntimeInitialized: resolve };",
+            "        return BASIS(Module);",
+            "",
+            "      }).then( () => {",
+            "        const { BasisFile, initializeBasis } = Module;",
+            "",
+            "        _BasisFile = BasisFile;",
+            "        initializeBasis();",
+            "      });",
+            "    }",
+            "",
+            "    function __transcode( buffer, config) {",
+            "      const basisFile = new _BasisFile( new Uint8Array( buffer ) );",
+            "      const width = basisFile.getImageWidth( 0, 0 );",
+            "      const height = basisFile.getImageHeight( 0, 0 );",
+            "      const levels = config.genMip ? basisFile.getNumLevels( 0 ) : 1;",
+            "      const hasAlpha = basisFile.getHasAlpha();",
+            "",
+            "      const cleanup = () => {",
+            "        basisFile.close();",
+            "        basisFile.delete();",
+            "      };",
+            "",
+            "      if (!width || !height || !levels ) {",
+            "        cleanup();",
+            "        throw 'Invalid .basis file';",
+            "      }",
+            "",
+            "      if ( ! basisFile.startTranscoding() ) {",
+            "        cleanup();",
+            "        throw '.startTranscoding failed';",
+            "      }",
+            "",
+            "      let totalSize = 0;",
+            "      let offset = 0;",
+            "      let targetBuffer = undefined;",
+            "",
+            "      const mipmaps = [];",
+            "      const target = hasAlpha ? config.rgbaFormat : config.rgbFormat;",
+            "",
+            "      for ( let mip = 0; mip < levels; mip ++ ) {",
+            "        const mipWidth = basisFile.getImageWidth( 0, mip );",
+            "        const mipHeight = basisFile.getImageHeight( 0, mip );",
+            "        const size = basisFile.getImageTranscodedSizeInBytes( 0, mip, target );",
+            "",
+            "        //calc total size of buffer for all mips",
+            "        totalSize += size;",
+            "        mipmaps.push( { width: mipWidth, height: mipHeight, format: target, size } );",
+            "      }",
+            "",
+            "      targetBuffer = new Uint8Array(totalSize);",
+            "      for ( let mip = 0; mip < levels; mip ++ ) {",
+            "        const size = mipmaps[mip].size;",
+            "        const dst = new Uint8Array(targetBuffer.buffer, offset, size);",
+            "        const status = basisFile.transcodeImage(",
+            "          dst,",
+            "          0,",
+            "          mip,",
+            "          target,",
+            "          0,",
+            "          0",
+            "        );",
+            "",
+            "        if (!status) {",
+            "          cleanup();",
+            "          throw '.transcodeImage failed.';",
+            "        }",
+            "",
+            "        offset += size;",
+            "        //mipmaps[mip].data = dst;",
+            "      }",
+            "",
+            "      cleanup();",
+            "      return { width, height, hasAlpha, mipmaps, buffer : targetBuffer};",
+            "    }",
+            "  }"
+        ].join("\n");
         function generateWorker(basisJSSource) {
             var source = WorkedBASIS.basisWorkerSource.toString();
             var b0 = source.indexOf("{");
