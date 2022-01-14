@@ -26,3 +26,12 @@ docs/
 
 # jetBrains IDE ignores
 .idea
+
+# Yarn Berry
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
